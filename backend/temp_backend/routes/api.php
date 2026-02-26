@@ -2,14 +2,12 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FideleController;
+use App\Http\Controllers\SmsController;
 use App\Http\Controllers\SuiviController;
 use App\Http\Controllers\ActionController;
-use App\Http\Controllers\PasteurController;
-use App\Http\Controllers\FamilleController;
-use App\Http\Controllers\ParrainController;
-use App\Http\Controllers\ChefDiscController;
-use App\Http\Controllers\CorpsMetierController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 
 // Routes publiques
 Route::post('/login', [AuthController::class, 'login']);
@@ -29,6 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/fideles/{id}', [FideleController::class, 'update']);
     Route::delete('/fideles/{id}', [FideleController::class, 'destroy']);
 
+    // SMS en masse (protégé Sanctum)
+    Route::post('/send-bulk-sms', [SmsController::class, 'sendBulk']);
+
     // Suivis
     Route::post('/suivis', [SuiviController::class, 'store']);
     Route::put('/suivis/{id}', [SuiviController::class, 'update']);
@@ -39,25 +40,33 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/actions/{id}', [ActionController::class, 'update']);
     Route::delete('/actions/{id}', [ActionController::class, 'destroy']);
 
-    // Pasteurs
-    Route::get('/pasteurs', [PasteurController::class, 'index']);
-    Route::post('/pasteurs', [PasteurController::class, 'store']);
-
-    // Familles
-    Route::get('/familles', [FamilleController::class, 'index']);
-    Route::post('/familles', [FamilleController::class, 'store']);
-
-    // Parrains
-    Route::get('/parrains', [ParrainController::class, 'index']);
-    Route::post('/parrains', [ParrainController::class, 'store']);
-
-    // Chef Disc
-    Route::get('/chef-discs', [ChefDiscController::class, 'index']);
-    Route::post('/chef-discs', [ChefDiscController::class, 'store']);
-
-    // Corps de métiers
-    Route::get('/corps-metiers', [CorpsMetierController::class, 'index']);
-    Route::post('/corps-metiers', [CorpsMetierController::class, 'store']);
-    Route::put('/corps-metiers/{id}', [CorpsMetierController::class, 'update']);
+    // Utilisateurs (Tous les rôles : admin, pasteur, famille, parrain, service_social, travailleur)
+    Route::get('/users', [UserController::class, 'index']); // Peut filtrer par ?role=pasteur
+    Route::post('/users', [UserController::class, 'store']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    
+    // Routes de compatibilité (redirigent vers /users avec filtre)
+    Route::get('/pasteurs', function (Request $request) {
+        $controller = new UserController();
+        return $controller->index($request->merge(['role' => 'pasteur']));
+    });
+    Route::get('/familles', function (Request $request) {
+        $controller = new UserController();
+        return $controller->index($request->merge(['role' => 'famille']));
+    });
+    Route::get('/parrains', function (Request $request) {
+        $controller = new UserController();
+        return $controller->index($request->merge(['role' => 'parrain']));
+    });
+    Route::get('/service-sociaux', function (Request $request) {
+        $controller = new UserController();
+        return $controller->index($request->merge(['role' => 'service_social']));
+    });
+    Route::get('/travailleurs', function (Request $request) {
+        $controller = new UserController();
+        return $controller->index($request->merge(['role' => 'travailleur']));
+    });
 });
 

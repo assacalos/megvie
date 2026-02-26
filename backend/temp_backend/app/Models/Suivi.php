@@ -12,8 +12,12 @@ class Suivi extends Model
     protected $fillable = [
         'fidele_id',
         'statut',
+        'nature_echange',
+        'motif_echange',
+        'resume_echange',
         'date',
         'observation',
+        'commentaire',
     ];
 
     protected $casts = [

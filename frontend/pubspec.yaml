@@ -39,11 +39,14 @@ dependencies:
   # Utils
   uuid: ^4.2.1
   path_provider: ^2.1.1
+  share_plus: ^7.2.1
+  device_info_plus: ^11.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -51,4 +54,13 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+
+# Icône de l'application (logo MEG-VIE)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo_megvie.png"
+  adaptive_icon_background: "#B71C1C"
+  adaptive_icon_foreground: "assets/images/logo_megvie.png"
+  remove_alpha_ios: true
 

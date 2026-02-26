@@ -9,6 +9,11 @@ class ActionController extends Controller
 {
     public function store(Request $request)
     {
+        // Admin = observateur uniquement
+        if ($request->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $validated = $request->validate([
             'fidele_id' => 'required|exists:fideles,id',
             'type' => 'nullable|in:action_sociale,attribution_marche,accompagnement_projet',
@@ -24,6 +29,11 @@ class ActionController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Admin = observateur uniquement
+        if ($request->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $action = Action::findOrFail($id);
 
         $validated = $request->validate([
@@ -40,6 +50,11 @@ class ActionController extends Controller
 
     public function destroy($id)
     {
+        // Admin = observateur uniquement
+        if (request()->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $action = Action::findOrFail($id);
         $action->delete();
 

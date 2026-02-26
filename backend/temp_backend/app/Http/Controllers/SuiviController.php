@@ -9,9 +9,16 @@ class SuiviController extends Controller
 {
     public function store(Request $request)
     {
+        // Admin = observateur uniquement : pas de création de suivi
+        if ($request->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $validated = $request->validate([
             'fidele_id' => 'required|exists:fideles,id',
-            'statut' => 'nullable|in:pas_interesse,injoignable,confirme,visite_prochaine_fois',
+            'nature_echange' => 'nullable|string|in:physique,telephonique',
+            'motif_echange' => 'nullable|string',
+            'resume_echange' => 'nullable|string',
             'date' => 'required|date',
             'observation' => 'nullable|string',
         ]);
@@ -23,10 +30,17 @@ class SuiviController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Admin = observateur uniquement
+        if ($request->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $suivi = Suivi::findOrFail($id);
 
         $validated = $request->validate([
-            'statut' => 'sometimes|in:pas_interesse,injoignable,confirme,visite_prochaine_fois',
+            'nature_echange' => 'nullable|string|in:physique,telephonique',
+            'motif_echange' => 'nullable|string',
+            'resume_echange' => 'nullable|string',
             'date' => 'sometimes|date',
             'observation' => 'nullable|string',
         ]);
@@ -38,6 +52,11 @@ class SuiviController extends Controller
 
     public function destroy($id)
     {
+        // Admin = observateur uniquement
+        if (request()->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $suivi = Suivi::findOrFail($id);
         $suivi->delete();
 

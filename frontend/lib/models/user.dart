@@ -2,14 +2,12 @@ class User {
   final int id;
   final String name;
   final String email;
-  final String? typeConnexion;
   final String role;
 
   User({
     required this.id,
     required this.name,
     required this.email,
-    this.typeConnexion,
     required this.role,
   });
 
@@ -18,7 +16,6 @@ class User {
       id: json['id'],
       name: json['name'],
       email: json['email'],
-      typeConnexion: json['type_connexion'],
       role: json['role'] ?? 'admin',
     );
   }
@@ -28,7 +25,6 @@ class User {
       'id': id,
       'name': name,
       'email': email,
-      'type_connexion': typeConnexion,
       'role': role,
     };
   }

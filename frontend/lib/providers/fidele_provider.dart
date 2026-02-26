@@ -175,4 +175,25 @@ class FideleProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Récupère tous les fidèles pour l'export (sans pagination)
+  Future<List<Fidele>> fetchAllFidelesForExport() async {
+    try {
+      final apiService = ApiService();
+      final response = await apiService.get('/api/fideles/export');
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data is List) {
+          return data.map((json) => Fidele.fromJson(json)).toList();
+        }
+        return [];
+      }
+      return [];
+    } catch (e) {
+      _error = 'Erreur lors du chargement pour export: ${e.toString()}';
+      notifyListeners();
+      return [];
+    }
+  }
 }

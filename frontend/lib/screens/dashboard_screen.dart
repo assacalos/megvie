@@ -3,6 +3,34 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/fidele_provider.dart';
+import '../services/export_service.dart';
+
+// Admin et sous_admin peuvent voir le menu "Gestion des rôles" (sous_admin seul peut modifier)
+bool _canSeeRoles(String? role) {
+  return role == 'admin' || role == 'sous_admin';
+}
+
+// Fonction pour obtenir le message de bienvenue selon le rôle
+String _getWelcomeMessage(String? role) {
+  switch (role) {
+    case 'admin':
+      return 'Vue observateur : consultez les données, les statistiques et exportez ou imprimez.';
+    case 'sous_admin':
+      return 'Vous avez la capacité d\'enregistrer et de faire le suivi de tous les fidèles';
+    case 'pasteur':
+      return 'Vous pouvez enregistrer et suivre les fidèles de votre lieu de résidence';
+    case 'famille':
+      return 'Vous pouvez enregistrer et suivre les fidèles de votre famille';
+    case 'parrain':
+      return 'Vous pouvez enregistrer et suivre les fidèles que vous parrainez';
+    case 'service_social':
+      return 'Vous pouvez enregistrer et faire le suivi de tous les fidèles';
+    case 'travailleur':
+      return 'Vous pouvez enregistrer et suivre les fidèles';
+    default:
+      return 'Vous pouvez enregistrer et faire le suivi de vos fidèles';
+  }
+}
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -23,7 +51,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final fideleProvider = Provider.of<FideleProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -75,13 +102,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               leading: const Icon(Icons.people),
               title: const Text('Enrolés'),
               children: [
-                ListTile(
-                  title: const Text('Enrôlement'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/fideles/enregistrement');
-                  },
-                ),
+                if (authProvider.user?.role != 'admin')
+                  ListTile(
+                    title: const Text('Enrôlement'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/fideles/enregistrement');
+                    },
+                  ),
                 ListTile(
                   title: const Text('Liste'),
                   onTap: () {
@@ -91,30 +119,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings),
-              title: const Text('Sous-admins'),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('Pasteurs'),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.family_restroom),
-              title: const Text('Familles'),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.handshake),
-              title: const Text('Parrains'),
-              onTap: () {},
-            ),
+            // Gestion des rôles - Visible par admin (vue) et sous_admin (gestion)
+            if (_canSeeRoles(authProvider.user?.role))
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings),
+                title: const Text('Gestion des Rôles'),
+                subtitle: const Text('Pasteurs, Familles, Parrains, etc.'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/roles');
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.account_circle),
               title: const Text('Profil'),
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/profile');
+              },
             ),
           ],
         ),
@@ -124,22 +146,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome message
+            // Welcome message adapté selon le rôle
             Text(
               'Bienvenue ${authProvider.user?.name ?? ''}',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Vous avez la capacité d\'enregistrer et de faire le suivi de vos fidèles',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+            Text(
+              _getWelcomeMessage(authProvider.user?.role),
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 24),
             // Stats cards
             Consumer<FideleProvider>(
               builder: (context, provider, child) {
                 final stats = provider.stats ?? {};
-                return GridView.count(
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    GridView.count(
                   crossAxisCount: 2,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -168,6 +193,87 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.red,
                       subtitle: 'y compris pasteurs, parrains, familles',
                     ),
+                    _StatCard(
+                      title: 'Sans famille',
+                      value: '${stats['sans_famille'] ?? 0}',
+                      color: Colors.orange,
+                    ),
+                    _StatCard(
+                      title: 'Sans parrain',
+                      value: '${stats['sans_parrain'] ?? 0}',
+                      color: Colors.teal,
+                    ),
+                    _StatCard(
+                      title: 'Sans pasteur',
+                      value: '${stats['sans_pasteur'] ?? 0}',
+                      color: Colors.indigo,
+                    ),
+                  ],
+                ),
+                    // Pour l'admin observateur : exporter / imprimer les statistiques
+                    if (authProvider.user?.role == 'admin') ...[
+                      const SizedBox(height: 24),
+                      Card(
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Exporter / Imprimer',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'En tant qu\'observateur, vous pouvez exporter les statistiques ou la liste des fidèles.',
+                                style: TextStyle(fontSize: 13, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await ExportService.exportStatsToCSV(
+                                          Map<String, dynamic>.from(stats),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.bar_chart),
+                                      label: const Text('Exporter les statistiques'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final all =
+                                            await provider.fetchAllFidelesForExport();
+                                        if (context.mounted && all.isNotEmpty) {
+                                          await ExportService.exportFidelesToCSV(all);
+                                        } else if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Aucun fidèle à exporter'),
+                                              backgroundColor: Colors.orange,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      icon: const Icon(Icons.list),
+                                      label: const Text('Exporter la liste'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 );
               },
@@ -175,13 +281,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: authProvider.user?.role == 'admin'
+          ? null
+          : FloatingActionButton(
         onPressed: () {
           context.go('/fideles/enregistrement');
         },
-        icon: const Icon(Icons.add),
-        label: const Text('Nouvel Enregistrement'),
+        child: const Icon(Icons.add),
         backgroundColor: const Color(0xFF7B2CBF),
+        foregroundColor: Colors.white,
+        tooltip: 'Nouvel enregistrement',
       ),
     );
   }

@@ -24,6 +24,8 @@ frontend/*.iml
 frontend/.metadata
 frontend/.flutter-plugins
 frontend/.flutter-plugins-dependencies
+frontend/android/key.properties
+frontend/android/app/upload-keystore.jks
 
 # IDE
 .idea/

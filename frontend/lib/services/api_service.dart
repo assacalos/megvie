@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -7,15 +8,14 @@ class ApiService {
   ApiService._internal();
 
   late Dio _dio;
-  String? _baseUrl;
 
   void init(String baseUrl) {
-    _baseUrl = baseUrl;
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+        sendTimeout: const Duration(seconds: 60),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -26,15 +26,43 @@ class ApiService {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          debugPrint('=== REQUÊTE HTTP ===');
+          debugPrint('URL: ${options.baseUrl}${options.path}');
+          debugPrint('Méthode: ${options.method}');
+          debugPrint('Headers: ${options.headers}');
+          debugPrint('Data: ${options.data}');
+          debugPrint('Query Parameters: ${options.queryParameters}');
+
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString('auth_token');
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
+            debugPrint('Token ajouté aux headers');
           }
           return handler.next(options);
         },
+        onResponse: (response, handler) {
+          debugPrint('=== RÉPONSE HTTP ===');
+          debugPrint('Status Code: ${response.statusCode}');
+          debugPrint('Headers: ${response.headers}');
+          debugPrint('Data: ${response.data}');
+          return handler.next(response);
+        },
         onError: (error, handler) {
+          debugPrint('=== ERREUR HTTP ===');
+          debugPrint('Type: ${error.type}');
+          debugPrint('Message: ${error.message}');
+          debugPrint('Status Code: ${error.response?.statusCode}');
+          debugPrint('Response Data: ${error.response?.data}');
+          debugPrint('Request Path: ${error.requestOptions.path}');
+          debugPrint('Request Data: ${error.requestOptions.data}');
+
+          if (error.response != null) {
+            debugPrint('Response Headers: ${error.response!.headers}');
+          }
+
           if (error.response?.statusCode == 401) {
+            debugPrint('Erreur 401: Non autorisé');
             // Gérer la déconnexion
           }
           return handler.next(error);
@@ -114,5 +142,17 @@ class ApiService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Envoi de SMS en masse aux fidèles sélectionnés.
+  /// [fideleIds] : liste des IDs des fidèles, [message] : texte du SMS.
+  Future<Response> sendBulkSms(List<int> fideleIds, String message) async {
+    return post(
+      '/api/send-bulk-sms',
+      data: {
+        'fidele_ids': fideleIds,
+        'message': message,
+      },
+    );
   }
 }

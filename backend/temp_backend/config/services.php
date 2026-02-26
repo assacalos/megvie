@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'sms' => [
+        'api_key' => env('SMS_API_KEY'),
+        'api_url' => env('SMS_API_URL'), // ex: https://api.termii.com/api/sms/send
+    ],
+
 ];

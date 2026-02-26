@@ -1,7 +1,6 @@
 # MEG-VIE - Application de Gestion des Fidèles
 
-Application mobile et web pour la gestion des fidèles de l'église MEG-VIE.
-
+cd
 ## Structure du Projet
 
 - `backend/` - Application Laravel (API REST)

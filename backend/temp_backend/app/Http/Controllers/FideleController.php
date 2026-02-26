@@ -10,7 +10,47 @@ class FideleController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user(); // Utilisateur connecté
         $query = Fidele::with(['parrain', 'pasteur', 'chefDisc', 'famille', 'corpsMetier']);
+
+        // Filtrer selon le rôle de l'utilisateur connecté
+        if ($user) {
+            $role = $user->role;
+            
+            switch ($role) {
+                case 'admin':
+                case 'sous_admin':
+                case 'service_social':
+                    // Administrateurs et services sociaux voient tous les fidèles
+                    break;
+                    
+                case 'famille':
+                    // Les familles voient uniquement les fidèles de leur famille
+                    $query->where('famille_id', $user->id);
+                    break;
+                    
+                case 'parrain':
+                    // Les parrains voient uniquement les fidèles qu'ils parrainent
+                    $query->where('parrain_id', $user->id);
+                    break;
+                    
+                case 'pasteur':
+                    // Les pasteurs voient les fidèles assignés (pasteur_id) OU dont le lieu d'habitation
+                    // correspond à au moins un quartier de leur zone de suivi
+                    $query->where(function ($q) use ($user) {
+                        $q->where('pasteur_id', $user->id);
+                        if (!empty(trim($user->zone_suivi ?? ''))) {
+                            $quartiers = array_filter(array_map('trim', explode(',', $user->zone_suivi)));
+                            foreach ($quartiers as $quartier) {
+                                if ($quartier !== '') {
+                                    $q->orWhereRaw('LOWER(lieu_residence) LIKE ?', ['%' . mb_strtolower($quartier) . '%']);
+                                }
+                            }
+                        }
+                    });
+                    break;
+            }
+        }
 
         // Recherche par texte
         if ($request->has('search')) {
@@ -47,6 +87,11 @@ class FideleController extends Controller
 
     public function store(Request $request)
     {
+        // Admin = observateur uniquement : pas de création
+        if ($request->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $validated = $request->validate([
             'nom' => 'required|string',
             'prenoms' => 'required|string',
@@ -58,7 +103,7 @@ class FideleController extends Controller
             'frequente_eglise' => 'nullable|string',
             'souhaite_appartenir' => 'nullable|boolean',
             'date_arrivee' => 'nullable|date',
-            'appartient_famille' => 'nullable|string',
+            'appartient_famille' => 'nullable|boolean',
             'statut' => 'nullable|in:fidele,nouvel_ame',
             'profession' => 'nullable|string',
             'photo' => 'nullable|image|max:2048',
@@ -67,13 +112,19 @@ class FideleController extends Controller
             'whatsapp' => 'nullable|string',
             'instagram' => 'nullable|string',
             'email' => 'nullable|email',
-            'parrain_id' => 'nullable|exists:parrains,id',
-            'pasteur_id' => 'nullable|exists:pasteurs,id',
-            'chef_disc_id' => 'nullable|exists:chef_discs,id',
-            'famille_id' => 'nullable|exists:familles,id',
+            'parrain_id' => 'nullable|exists:users,id',
+            'pasteur_id' => 'nullable|exists:users,id',
+            'chef_disc_id' => 'nullable|exists:users,id',
+            'famille_id' => 'nullable|exists:users,id',
+            'famille_mois' => 'nullable|string|max:50',
             'formation' => 'nullable|string',
             'annee_experience' => 'nullable|integer',
-            'corps_metier_id' => 'nullable|exists:corps_metiers,id',
+            'corps_metier_id' => 'nullable|exists:users,id',
+            'baptise_eau' => 'nullable|boolean',
+            'baptise_saint_esprit' => 'nullable|boolean',
+            'cure_d_ame' => 'nullable|boolean',
+            'delivrance' => 'nullable|boolean',
+            'mariage' => 'nullable|boolean',
         ]);
 
         if ($request->hasFile('photo')) {
@@ -100,6 +151,11 @@ class FideleController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Admin = observateur uniquement : pas de modification
+        if ($request->user()?->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $fidele = Fidele::findOrFail($id);
 
         $validated = $request->validate([
@@ -114,13 +170,19 @@ class FideleController extends Controller
             'whatsapp' => 'nullable|string',
             'instagram' => 'nullable|string',
             'email' => 'nullable|email',
-            'parrain_id' => 'nullable|exists:parrains,id',
-            'pasteur_id' => 'nullable|exists:pasteurs,id',
-            'chef_disc_id' => 'nullable|exists:chef_discs,id',
-            'famille_id' => 'nullable|exists:familles,id',
+            'parrain_id' => 'nullable|exists:users,id',
+            'pasteur_id' => 'nullable|exists:users,id',
+            'chef_disc_id' => 'nullable|exists:users,id',
+            'famille_id' => 'nullable|exists:users,id',
+            'famille_mois' => 'nullable|string|max:50',
             'formation' => 'nullable|string',
             'annee_experience' => 'nullable|integer',
-            'corps_metier_id' => 'nullable|exists:corps_metiers,id',
+            'corps_metier_id' => 'nullable|exists:users,id',
+            'baptise_eau' => 'nullable|boolean',
+            'baptise_saint_esprit' => 'nullable|boolean',
+            'cure_d_ame' => 'nullable|boolean',
+            'delivrance' => 'nullable|boolean',
+            'mariage' => 'nullable|boolean',
         ]);
 
         if ($request->hasFile('photo')) {
@@ -130,11 +192,34 @@ class FideleController extends Controller
             $validated['photo'] = $request->file('photo')->store('photos', 'public');
         }
 
+        // Convertir les booléens baptême et pasteur
+        foreach (['baptise_eau', 'baptise_saint_esprit', 'cure_d_ame', 'delivrance', 'mariage'] as $field) {
+            if (array_key_exists($field, $validated) && $validated[$field] !== null) {
+                $validated[$field] = filter_var($validated[$field], FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
         // Convertir les IDs en entiers si présents
         foreach (['parrain_id', 'pasteur_id', 'chef_disc_id', 'famille_id', 'corps_metier_id'] as $field) {
             if (isset($validated[$field]) && $validated[$field] === '') {
                 $validated[$field] = null;
             }
+        }
+
+        // Dates de mise à jour selon les champs modifiés
+        $now = now();
+        $validated['date_derniere_mise_a_jour'] = $now;
+        $pasteurFields = ['baptise_eau', 'baptise_saint_esprit', 'cure_d_ame', 'delivrance', 'mariage'];
+        $parrainageFields = ['parrain_id', 'pasteur_id', 'famille_id'];
+        $socioProFields = ['formation', 'annee_experience', 'corps_metier_id'];
+        if (count(array_intersect_key(array_flip($pasteurFields), $validated)) > 0) {
+            $validated['date_mise_a_jour_pasteur'] = $now;
+        }
+        if (count(array_intersect_key(array_flip($parrainageFields), $validated)) > 0) {
+            $validated['date_mise_a_jour_parrainage'] = $now;
+        }
+        if (count(array_intersect_key(array_flip($socioProFields), $validated)) > 0) {
+            $validated['date_mise_a_jour_socio_pro'] = $now;
         }
 
         $fidele->update($validated);
@@ -144,6 +229,12 @@ class FideleController extends Controller
 
     public function destroy($id)
     {
+        // Admin = observateur uniquement : pas de suppression
+        $user = request()->user();
+        if ($user && $user->role === 'admin') {
+            return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+
         $fidele = Fidele::findOrFail($id);
         
         if ($fidele->photo) {
@@ -163,6 +254,11 @@ class FideleController extends Controller
             'nouvelles_ames' => Fidele::where('statut', 'nouvel_ame')->count(),
             'baptises' => 0, // À implémenter selon vos besoins
             'suivis' => Fidele::has('suivis')->count(),
+            'sans_famille' => Fidele::where(function ($q) {
+                $q->whereNull('famille_mois')->orWhere('famille_mois', '');
+            })->count(),
+            'sans_parrain' => Fidele::whereNull('parrain_id')->count(),
+            'sans_pasteur' => Fidele::whereNull('pasteur_id')->count(),
         ];
 
         return response()->json($stats);

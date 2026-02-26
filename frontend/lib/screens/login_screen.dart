@@ -14,7 +14,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? _typeConnexion;
 
   @override
   void dispose() {
@@ -30,11 +29,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = await authProvider.login(
       _emailController.text.trim(),
       _passwordController.text,
-      typeConnexion: _typeConnexion,
     );
 
     if (success && mounted) {
-      context.go('/dashboard');
+      // Rediriger selon le rôle de l'utilisateur
+      final user = authProvider.user;
+      if (user != null) {
+        // Tous les rôles vont au dashboard, mais le dashboard s'adaptera selon le rôle
+        context.go('/dashboard');
+      } else {
+        context.go('/dashboard');
+      }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -65,19 +70,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.red,
-                        border: Border.all(color: Colors.amber, width: 4),
-                      ),
-                      child: const Icon(
-                        Icons.church,
-                        size: 60,
-                        color: Colors.white,
+                    // Logo MEG-VIE
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(60),
+                      child: Image.asset(
+                        'assets/images/logo_megvie.png',
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -123,38 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                     const SizedBox(height: 24),
-                    // Type de connexion
-                    DropdownButtonFormField<String>(
-                      value: _typeConnexion,
-                      decoration: InputDecoration(
-                        labelText: 'Type de connexion',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'admin',
-                          child: Text('Administrateur'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'pasteur',
-                          child: Text('Pasteur'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'sous_admin',
-                          child: Text('Sous-administrateur'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _typeConnexion = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
                     // Email
                     TextFormField(
                       controller: _emailController,
