@@ -61,12 +61,17 @@ class UserController extends Controller
             'description' => 'nullable|string',
             'profession' => 'nullable|string',
             'entreprise' => 'nullable|string',
-            'role' => 'required|string|in:admin,sous_admin,pasteur,famille,parrain,service_social,travailleur',
+            'role' => 'required|string|in:admin,sous_admin,pasteur,famille,parrain,service_social,travailleur,fidele',
         ];
         if ($request->input('role') === 'parrain') {
             $rules['famille_id'] = 'required|exists:users,id';
         } else {
             $rules['famille_id'] = 'nullable|exists:users,id';
+        }
+        if ($request->input('role') === 'fidele') {
+            $rules['fidele_id'] = 'required|exists:fideles,id';
+        } else {
+            $rules['fidele_id'] = 'nullable|exists:fideles,id';
         }
         $validated = $request->validate($rules);
 
@@ -93,6 +98,7 @@ class UserController extends Controller
             'entreprise' => $validated['entreprise'] ?? null,
             'role' => $validated['role'],
             'famille_id' => $validated['famille_id'] ?? null,
+            'fidele_id' => $validated['fidele_id'] ?? null,
         ];
 
         // Hash le mot de passe
@@ -137,8 +143,9 @@ class UserController extends Controller
             'description' => 'sometimes|string',
             'profession' => 'sometimes|string',
             'entreprise' => 'sometimes|string',
-            'role' => 'sometimes|string|in:admin,sous_admin,pasteur,famille,parrain,service_social,travailleur',
+            'role' => 'sometimes|string|in:admin,sous_admin,pasteur,famille,parrain,service_social,travailleur,fidele',
             'famille_id' => 'nullable|exists:users,id',
+            'fidele_id' => 'nullable|exists:fideles,id',
         ]);
 
         if (isset($validated['password'])) {
@@ -147,6 +154,9 @@ class UserController extends Controller
         // Si le rôle devient ou reste parrain, conserver famille_id ; sinon le mettre à null
         if (array_key_exists('role', $validated) && $validated['role'] !== 'parrain') {
             $validated['famille_id'] = null;
+        }
+        if (array_key_exists('role', $validated) && $validated['role'] !== 'fidele') {
+            $validated['fidele_id'] = null;
         }
 
         $user->update($validated);

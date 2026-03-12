@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 
 class AuthProvider with ChangeNotifier {
   User? _user;
@@ -80,6 +81,8 @@ class AuthProvider with ChangeNotifier {
         await prefs.setString('auth_token', _token!);
         await prefs.setString('user', jsonEncode(_user!.toJson()));
         debugPrint('Session sauvegardée (reste connecté après fermeture de l\'app)');
+
+        PushNotificationService().registerTokenIfNeeded();
 
         _isLoading = false;
         notifyListeners();

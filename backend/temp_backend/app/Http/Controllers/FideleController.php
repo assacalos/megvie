@@ -13,6 +13,16 @@ class FideleController extends Controller
         $user = $request->user(); // Utilisateur connecté
         $query = Fidele::with(['parrain', 'pasteur', 'chefDisc', 'famille', 'corpsMetier']);
 
+        // Fidèle : ne voit que sa propre fiche (une seule entrée)
+        if ($user && $user->role === 'fidele') {
+            if (empty($user->fidele_id)) {
+                return response()->json(['data' => [], 'current_page' => 1, 'total' => 0]);
+            }
+            $query->where('id', $user->fidele_id);
+            $fideles = $query->with(['suivis', 'actions'])->orderBy('created_at', 'desc')->paginate(20);
+            return response()->json($fideles);
+        }
+
         // Filtrer selon le rôle de l'utilisateur connecté
         if ($user) {
             $role = $user->role;
@@ -85,11 +95,35 @@ class FideleController extends Controller
         return response()->json($fideles);
     }
 
+    /**
+     * Retourne la fiche fidèle de l'utilisateur connecté (rôle fidèle uniquement).
+     */
+    public function meFidele(Request $request)
+    {
+        $user = $request->user();
+        if (! $user || $user->role !== 'fidele' || empty($user->fidele_id)) {
+            return response()->json(['message' => 'Accès non autorisé ou pas de fiche fidèle liée.'], 403);
+        }
+
+        $fidele = Fidele::with(['parrain', 'pasteur', 'chefDisc', 'famille', 'corpsMetier', 'suivis', 'actions'])
+            ->find($user->fidele_id);
+
+        if (! $fidele) {
+            return response()->json(['message' => 'Fiche fidèle introuvable.'], 404);
+        }
+
+        return response()->json($fidele);
+    }
+
     public function store(Request $request)
     {
         // Admin = observateur uniquement : pas de création
         if ($request->user()?->role === 'admin') {
             return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
+        }
+        // Fidèle ne peut pas créer d'autres fiches
+        if ($request->user()?->role === 'fidele') {
+            return response()->json(['message' => 'Accès refusé.'], 403);
         }
 
         $validated = $request->validate([
@@ -141,8 +175,16 @@ class FideleController extends Controller
         return response()->json($fidele->load(['parrain', 'pasteur', 'chefDisc', 'famille', 'corpsMetier']), 201);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $user = $request->user();
+        // Un fidèle ne peut voir que sa propre fiche
+        if ($user && $user->role === 'fidele') {
+            if ((int) $id !== (int) $user->fidele_id) {
+                return response()->json(['message' => 'Accès non autorisé.'], 403);
+            }
+        }
+
         $fidele = Fidele::with(['parrain', 'pasteur', 'chefDisc', 'famille', 'corpsMetier', 'suivis', 'actions'])
             ->findOrFail($id);
 
@@ -157,6 +199,35 @@ class FideleController extends Controller
         }
 
         $fidele = Fidele::findOrFail($id);
+
+        // Fidèle : ne peut modifier que sa propre fiche, et uniquement certains champs
+        $user = $request->user();
+        if ($user && $user->role === 'fidele') {
+            if ((int) $id !== (int) $user->fidele_id) {
+                return response()->json(['message' => 'Accès non autorisé.'], 403);
+            }
+            $allowed = ['contacts', 'whatsapp', 'email', 'facebook', 'instagram', 'photo', 'lieu_residence', 'profession'];
+            $validated = $request->validate([
+                'contacts' => 'sometimes|nullable|string',
+                'whatsapp' => 'sometimes|nullable|string',
+                'email' => 'sometimes|nullable|email',
+                'facebook' => 'sometimes|nullable|string',
+                'instagram' => 'sometimes|nullable|string',
+                'photo' => 'nullable|image|max:2048',
+                'lieu_residence' => 'sometimes|nullable|string',
+                'profession' => 'sometimes|nullable|string',
+            ]);
+            $validated = array_intersect_key($validated, array_flip($allowed));
+            if ($request->hasFile('photo')) {
+                if ($fidele->photo) {
+                    Storage::disk('public')->delete($fidele->photo);
+                }
+                $validated['photo'] = $request->file('photo')->store('photos', 'public');
+            }
+            $validated['date_derniere_mise_a_jour'] = now();
+            $fidele->update($validated);
+            return response()->json($fidele->fresh()->load(['parrain', 'pasteur', 'chefDisc', 'famille', 'corpsMetier']));
+        }
 
         $validated = $request->validate([
             'nom' => 'sometimes|string',
@@ -234,6 +305,10 @@ class FideleController extends Controller
         if ($user && $user->role === 'admin') {
             return response()->json(['message' => 'Accès refusé. L\'administrateur est en mode observateur.'], 403);
         }
+        // Fidèle ne peut pas supprimer de fiche
+        if ($user && $user->role === 'fidele') {
+            return response()->json(['message' => 'Accès refusé.'], 403);
+        }
 
         $fidele = Fidele::findOrFail($id);
         
@@ -246,8 +321,13 @@ class FideleController extends Controller
         return response()->json(['message' => 'Fidèle supprimé avec succès']);
     }
 
-    public function stats()
+    public function stats(Request $request)
     {
+        $user = $request->user();
+        if ($user && $user->role === 'fidele') {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+
         $stats = [
             'total' => Fidele::count(),
             'fideles' => Fidele::where('statut', 'fidele')->count(),

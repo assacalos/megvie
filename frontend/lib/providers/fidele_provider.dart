@@ -176,6 +176,28 @@ class FideleProvider with ChangeNotifier {
     }
   }
 
+  /// Récupère la fiche fidèle de l'utilisateur connecté (rôle fidèle).
+  Future<Fidele?> fetchMyProfilFidele() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final apiService = ApiService();
+      final response = await apiService.get('/api/me/fidele');
+      if (response.statusCode == 200) {
+        _selectedFidele = Fidele.fromJson(response.data);
+        _isLoading = false;
+        notifyListeners();
+        return _selectedFidele;
+      }
+    } catch (e) {
+      _error = 'Erreur lors du chargement: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+    }
+    return null;
+  }
+
   /// Récupère tous les fidèles pour l'export (sans pagination)
   Future<List<Fidele>> fetchAllFidelesForExport() async {
     try {

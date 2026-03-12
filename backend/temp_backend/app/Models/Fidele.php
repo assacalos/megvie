@@ -97,5 +97,13 @@ class Fidele extends Model
     {
         return $this->hasMany(Action::class);
     }
+
+    /**
+     * Utilisateur (compte de connexion) lié à ce fidèle, si rôle fidèle.
+     */
+    public function user()
+    {
+        return $this->hasOne(User::class, 'fidele_id');
+    }
 }
 

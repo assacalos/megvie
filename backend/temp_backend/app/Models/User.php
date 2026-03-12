@@ -25,6 +25,7 @@ class User extends Authenticatable
         'entreprise',
         'role',
         'famille_id', // Pour les parrains : famille à laquelle ils sont rattachés
+        'fidele_id',  // Pour role=fidele : lien vers la fiche fidèle
     ];
 
     protected $hidden = [
@@ -54,6 +55,14 @@ class User extends Authenticatable
     public function parrains()
     {
         return $this->hasMany(User::class, 'famille_id')->where('role', 'parrain');
+    }
+
+    /**
+     * Fiche fidèle liée à cet utilisateur (pour role=fidele).
+     */
+    public function fidele()
+    {
+        return $this->belongsTo(Fidele::class);
     }
 }
 

@@ -130,6 +130,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   context.go('/roles');
                 },
               ),
+            ExpansionTile(
+              leading: const Icon(Icons.campaign),
+              title: const Text('Contenu & Communication'),
+              children: [
+                ListTile(
+                  title: const Text('Annonces / Actualités'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/annonces');
+                  },
+                ),
+                ListTile(
+                  title: const Text('Documents'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/documents');
+                  },
+                ),
+                ListTile(
+                  title: const Text('Dîmes & Offrandes'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/finances');
+                  },
+                ),
+                ListTile(
+                  title: const Text('Rendez-vous'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/rendez-vous');
+                  },
+                ),
+                ListTile(
+                  title: const Text('Médiathèque'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/mediatheque');
+                  },
+                ),
+                ListTile(
+                  title: const Text('Prière & Témoignages'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/priere-temoignages');
+                  },
+                ),
+              ],
+            ),
             ListTile(
               leading: const Icon(Icons.account_circle),
               title: const Text('Profil'),

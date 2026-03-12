@@ -1380,6 +1380,15 @@ class _DetailFideleScreenState extends State<DetailFideleScreen>
                             ? 'Téléphonique'
                             : '—';
                     return DataRow(
+                      onSelectChanged: (_) {
+                        final fidele = Provider.of<FideleProvider>(context, listen: false).selectedFidele;
+                        final fideleNom = fidele?.fullName;
+                        context.push('/fideles/suivis/detail', extra: {
+                          'fideleId': widget.fideleId,
+                          'fideleNom': fideleNom,
+                          'suivi': suivi,
+                        });
+                      },
                       cells: [
                         DataCell(Text(natureLabel)),
                         DataCell(Text(suivi['motif_echange']?.toString() ?? '—')),

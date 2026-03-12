@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Services\SmsGatewayInterface;
+ use App\Services\SmsGatewayInterface;
 use App\Services\TermiiSmsGateway;
 use Illuminate\Support\ServiceProvider;
 
