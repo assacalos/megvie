@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../providers/content_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/annonce.dart';
+import '../../widgets/annonce_detail_sheet.dart';
 
 class AnnoncesScreen extends StatefulWidget {
   const AnnoncesScreen({super.key});
@@ -67,13 +68,11 @@ class _AnnoncesScreenState extends State<AnnoncesScreen> {
           );
         },
       ),
-      floatingActionButton: isFidele
-          ? null
-          : FloatingActionButton(
-              onPressed: () => _showForm(context, null),
-              child: const Icon(Icons.add),
-              backgroundColor: const Color(0xFF7B2CBF),
-            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showForm(context, null, isFidele: isFidele),
+        child: const Icon(Icons.add),
+        backgroundColor: const Color(0xFF7B2CBF),
+      ),
     );
   }
 
@@ -82,46 +81,38 @@ class _AnnoncesScreenState extends State<AnnoncesScreen> {
     if (!context.mounted) return;
     final ann = cp.selectedAnnonce;
     if (ann == null) return;
+    await cp.fetchAnnonceComments(ann.id);
+    if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        expand: false,
-        builder: (_, controller) => Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(ann.titre, style: Theme.of(ctx).textTheme.titleLarge),
-              Text(DateFormat('dd/MM/yyyy').format(ann.datePublication), style: TextStyle(color: Colors.grey[600])),
-              const SizedBox(height: 12),
-              Expanded(child: SingleChildScrollView(controller: controller, child: Text(ann.contenu))),
-              if (!isFidele)
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _showForm(context, ann);
-                  },
-                  child: const Text('Modifier'),
-                ),
-            ],
-          ),
-        ),
+      builder: (ctx) => AnnonceDetailSheet(
+        annonce: cp.selectedAnnonce ?? ann,
+        isFidele: isFidele,
+        onEdit: isFidele
+            ? null
+            : () {
+                Navigator.pop(ctx);
+                _showForm(context, ann);
+              },
       ),
     );
   }
 
-  void _showForm(BuildContext context, Annonce? existing) {
+  void _showForm(BuildContext context, Annonce? existing, {bool isFidele = false}) {
     final titreC = TextEditingController(text: existing?.titre);
     final contenuC = TextEditingController(text: existing?.contenu);
-    var type = existing?.type ?? 'annonce';
+    var type = existing?.type ?? (isFidele ? 'actualite' : 'annonce');
     var isPinned = existing?.isPinned ?? false;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setState) => AlertDialog(
-          title: Text(existing == null ? 'Nouvelle annonce' : 'Modifier l\'annonce'),
+          title: Text(
+            existing == null
+                ? (isFidele ? 'Nouvelle actualité' : 'Nouvelle annonce')
+                : 'Modifier l\'annonce',
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -129,13 +120,27 @@ class _AnnoncesScreenState extends State<AnnoncesScreen> {
                 TextField(controller: titreC, decoration: const InputDecoration(labelText: 'Titre')),
                 const SizedBox(height: 8),
                 TextField(controller: contenuC, maxLines: 5, decoration: const InputDecoration(labelText: 'Contenu')),
-                DropdownButtonFormField<String>(
-                  value: type,
-                  decoration: const InputDecoration(labelText: 'Type'),
-                  items: const [DropdownMenuItem(value: 'annonce', child: Text('Annonce')), DropdownMenuItem(value: 'actualite', child: Text('Actualité'))],
-                  onChanged: (v) => setState(() => type = v ?? 'annonce'),
-                ),
-                CheckboxListTile(value: isPinned, onChanged: (v) => setState(() => isPinned = v ?? false), title: const Text('Épingler')),
+                if (!isFidele)
+                  DropdownButtonFormField<String>(
+                    value: type,
+                    decoration: const InputDecoration(labelText: 'Type'),
+                    items: const [
+                      DropdownMenuItem(value: 'annonce', child: Text('Annonce')),
+                      DropdownMenuItem(value: 'actualite', child: Text('Actualité')),
+                    ],
+                    onChanged: (v) => setState(() => type = v ?? 'annonce'),
+                  ),
+                if (isFidele)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text('Type : Actualité', style: TextStyle(color: Colors.grey)),
+                  ),
+                if (!isFidele)
+                  CheckboxListTile(
+                    value: isPinned,
+                    onChanged: (v) => setState(() => isPinned = v ?? false),
+                    title: const Text('Épingler'),
+                  ),
               ],
             ),
           ),
@@ -148,15 +153,15 @@ class _AnnoncesScreenState extends State<AnnoncesScreen> {
                   await cp.updateAnnonce(existing.id, {
                     'titre': titreC.text,
                     'contenu': contenuC.text,
-                    'type': type,
-                    'is_pinned': isPinned,
+                    if (!isFidele) 'type': type,
+                    if (!isFidele) 'is_pinned': isPinned,
                   });
                 } else {
                   await cp.createAnnonce(Annonce(
                     id: 0,
                     titre: titreC.text,
                     contenu: contenuC.text,
-                    type: type,
+                    type: isFidele ? 'actualite' : type,
                     datePublication: DateTime.now(),
                   ));
                 }

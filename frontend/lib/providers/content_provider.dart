@@ -15,6 +15,7 @@ class ContentProvider with ChangeNotifier {
   final ApiService _api = ApiService();
 
   List<Annonce> _annonces = [];
+  List<Annonce> _actualitesDashboard = [];
   Annonce? _selectedAnnonce;
   List<Document> _documents = [];
   List<OperationFinanciere> _operations = [];
@@ -29,6 +30,7 @@ class ContentProvider with ChangeNotifier {
   String? _error;
 
   List<Annonce> get annonces => _annonces;
+  List<Annonce> get actualitesDashboard => _actualitesDashboard;
   Annonce? get selectedAnnonce => _selectedAnnonce;
   List<Document> get documents => _documents;
   List<OperationFinanciere> get operations => _operations;
@@ -45,23 +47,44 @@ class ContentProvider with ChangeNotifier {
   String get documentBaseUrl => '${AppConstants.getBaseUrl()}/storage/';
 
   // --- Annonces ---
-  Future<void> fetchAnnonces({String? type}) async {
+  Future<void> fetchAnnonces({String? type, int? perPage}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      final q = type != null ? {'type': type} : null;
-      final r = await _api.get('/api/annonces', queryParameters: q);
+      final q = <String, dynamic>{};
+      if (type != null) q['type'] = type;
+      if (perPage != null) q['per_page'] = perPage;
+      final r = await _api.get('/api/annonces', queryParameters: q.isEmpty ? null : q);
       if (r.statusCode == 200) {
         final data = r.data['data'] ?? r.data;
-        _annonces = ((data is List ? data : data['data'] ?? []) as List)
+        final list = ((data is List ? data : data['data'] ?? []) as List)
             .map((e) => Annonce.fromJson(e as Map<String, dynamic>))
             .toList();
+        _annonces = list;
+        if (type == 'actualite' && perPage != null) {
+          _actualitesDashboard = list;
+        }
       }
     } catch (e) {
       _error = e.toString();
     }
     _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Charge les actualités pour le bandeau du dashboard fidèle (sans écraser la liste annonces).
+  Future<void> fetchActualitesDashboard() async {
+    try {
+      final q = <String, dynamic>{'type': 'actualite', 'per_page': 5};
+      final r = await _api.get('/api/annonces', queryParameters: q);
+      if (r.statusCode == 200) {
+        final data = r.data['data'] ?? r.data;
+        _actualitesDashboard = ((data is List ? data : data['data'] ?? []) as List)
+            .map((e) => Annonce.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
     notifyListeners();
   }
 
@@ -133,6 +156,109 @@ class ContentProvider with ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Like / unlike une annonce. Retourne la nouvelle valeur liked et le nouveau count.
+  Future<Map<String, dynamic>?> toggleLikeAnnonce(int id) async {
+    try {
+      final r = await _api.post('/api/annonces/$id/like');
+      if (r.statusCode == 200) {
+        final liked = r.data['liked'] as bool? ?? false;
+        final count = r.data['likes_count'] as int? ?? 0;
+        _updateAnnonceInList(id, likesCount: count, userHasLiked: liked);
+        if (_selectedAnnonce?.id == id) {
+          _selectedAnnonce = _selectedAnnonce!.copyWith(
+            likesCount: count,
+            userHasLiked: liked,
+          );
+        }
+        notifyListeners();
+        return {'liked': liked, 'likes_count': count};
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+    return null;
+  }
+
+  /// Ajouter un commentaire. Retourne le commentaire créé ou null.
+  Future<AnnonceComment?> addCommentAnnonce(int id, String contenu) async {
+    try {
+      final r = await _api.post('/api/annonces/$id/comment', data: {'contenu': contenu});
+      if (r.statusCode == 201 && r.data != null) {
+        final c = AnnonceComment.fromJson(r.data as Map<String, dynamic>);
+        final comments = List<AnnonceComment>.from(_selectedAnnonce?.comments ?? []);
+        if (_selectedAnnonce?.id == id) {
+          comments.add(c);
+          _selectedAnnonce = _selectedAnnonce!.copyWith(
+            commentsCount: comments.length,
+            comments: comments,
+          );
+        }
+        final idx = _annonces.indexWhere((a) => a.id == id);
+        if (idx >= 0) {
+          _updateAnnonceInList(id, commentsCount: _annonces[idx].commentsCount + 1);
+        }
+        notifyListeners();
+        return c;
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+    return null;
+  }
+
+  /// Marquer comme partagé. Retourne le nouveau partages_count.
+  Future<int?> partagerAnnonce(int id) async {
+    try {
+      final r = await _api.post('/api/annonces/$id/partager');
+      if (r.statusCode == 200) {
+        final count = r.data['partages_count'] as int? ?? 0;
+        _updateAnnonceInList(id, partagesCount: count, userHasShared: true);
+        if (_selectedAnnonce?.id == id) {
+          _selectedAnnonce = _selectedAnnonce!.copyWith(
+            partagesCount: count,
+            userHasShared: true,
+          );
+        }
+        notifyListeners();
+        return count;
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+    return null;
+  }
+
+  Future<void> fetchAnnonceComments(int id) async {
+    try {
+      final r = await _api.get('/api/annonces/$id/comments');
+      if (r.statusCode == 200 && r.data is List) {
+        final comments = (r.data as List)
+            .map((e) => AnnonceComment.fromJson(e as Map<String, dynamic>))
+            .toList();
+        if (_selectedAnnonce?.id == id) {
+          _selectedAnnonce = _selectedAnnonce!.copyWith(comments: comments, commentsCount: comments.length);
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  void _updateAnnonceInList(int id, {int? likesCount, int? commentsCount, int? partagesCount, bool? userHasLiked, bool? userHasShared}) {
+    final i = _annonces.indexWhere((a) => a.id == id);
+    if (i >= 0) {
+      _annonces[i] = _annonces[i].copyWith(
+        likesCount: likesCount,
+        commentsCount: commentsCount,
+        partagesCount: partagesCount,
+        userHasLiked: userHasLiked,
+        userHasShared: userHasShared,
+      );
     }
   }
 

@@ -51,9 +51,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/actions/{id}', [ActionController::class, 'update']);
     Route::delete('/actions/{id}', [ActionController::class, 'destroy']);
 
-    // Annonces / actualités
+    // Annonces / actualités (autres rôles + fidèles peuvent interagir / partager ; fidèles peuvent créer des actualités)
     Route::get('/annonces', [AnnonceController::class, 'index']);
     Route::post('/annonces', [AnnonceController::class, 'store']);
+    Route::get('/annonces/{id}/comments', [AnnonceController::class, 'comments']);
+    Route::post('/annonces/{id}/like', [AnnonceController::class, 'like']);
+    Route::post('/annonces/{id}/comment', [AnnonceController::class, 'comment']);
+    Route::post('/annonces/{id}/partager', [AnnonceController::class, 'partager']);
     Route::get('/annonces/{id}', [AnnonceController::class, 'show']);
     Route::put('/annonces/{id}', [AnnonceController::class, 'update']);
     Route::delete('/annonces/{id}', [AnnonceController::class, 'destroy']);

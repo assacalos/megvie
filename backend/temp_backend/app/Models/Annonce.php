@@ -31,4 +31,19 @@ class Annonce extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    public function likes()
+    {
+        return $this->hasMany(AnnonceLike::class);
+    }
+
+    public function comments()
+    {
+        return $this->hasMany(AnnonceComment::class)->orderBy('created_at');
+    }
+
+    public function partages()
+    {
+        return $this->hasMany(AnnoncePartage::class);
+    }
 }

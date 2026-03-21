@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/fidele_provider.dart';
+import '../../../providers/content_provider.dart';
 import '../../../models/fidele.dart';
+import '../../../models/annonce.dart';
+import '../../../widgets/annonce_detail_sheet.dart';
 
 /// Tableau de bord réservé aux fidèles (rôle fidèle).
 /// Affiche un résumé : profil, suivis, famille.
@@ -20,6 +24,7 @@ class _DashboardFideleScreenState extends State<DashboardFideleScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<FideleProvider>(context, listen: false).fetchMyProfilFidele();
+      Provider.of<ContentProvider>(context, listen: false).fetchActualitesDashboard();
     });
   }
 
@@ -91,6 +96,8 @@ class _DashboardFideleScreenState extends State<DashboardFideleScreen> {
                   'Consultez votre profil, vos suivis et les informations de votre famille.',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
+                const SizedBox(height: 20),
+                _ActualitesSection(onOpenDetail: _openAnnonceDetail),
                 const SizedBox(height: 24),
                 _DashboardCard(
                   title: 'Mon profil',
@@ -194,6 +201,25 @@ class _DashboardFideleScreenState extends State<DashboardFideleScreen> {
     if (fidele.cureDAme == true) parts.add('Guérison');
     if (parts.isEmpty) return 'Parcours en cours';
     return parts.join(' • ');
+  }
+
+  Future<void> _openAnnonceDetail(BuildContext context, Annonce a) async {
+    final cp = Provider.of<ContentProvider>(context, listen: false);
+    await cp.fetchAnnonce(a.id);
+    if (!context.mounted) return;
+    final ann = cp.selectedAnnonce;
+    if (ann == null) return;
+    await cp.fetchAnnonceComments(ann.id);
+    if (!context.mounted) return;
+    _showAnnonceDetailSheet(context, cp.selectedAnnonce!, cp, isFidele: true);
+  }
+
+  void _showAnnonceDetailSheet(BuildContext context, Annonce ann, ContentProvider cp, {bool isFidele = false}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => AnnonceDetailSheet(annonce: ann, isFidele: isFidele),
+    );
   }
 
   Drawer _buildDrawer(BuildContext context, AuthProvider authProvider) {
@@ -366,3 +392,117 @@ class _DashboardCard extends StatelessWidget {
     );
   }
 }
+
+class _ActualitesSection extends StatelessWidget {
+  final void Function(BuildContext context, Annonce annonce) onOpenDetail;
+
+  const _ActualitesSection({required this.onOpenDetail});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ContentProvider>(
+      builder: (context, cp, _) {
+        final list = cp.actualitesDashboard;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Actualités',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.push('/espace-fidele/annonces'),
+                  icon: const Icon(Icons.arrow_forward, size: 18),
+                  label: const Text('Voir tout'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (list.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Aucune actualité pour le moment.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+              )
+            else
+              ...list.map((a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _ActualiteCard(
+                      annonce: a,
+                      onTap: () => onOpenDetail(context, a),
+                    ),
+                  )),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ActualiteCard extends StatelessWidget {
+  final Annonce annonce;
+  final VoidCallback onTap;
+
+  const _ActualiteCard({required this.annonce, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final excerpt = annonce.contenu.length > 80
+        ? '${annonce.contenu.substring(0, 80)}...'
+        : annonce.contenu;
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                annonce.titre,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                excerpt,
+                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    DateFormat('dd/MM/yyyy').format(annonce.datePublication),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(width: 16),
+                  Icon(Icons.favorite, size: 14, color: annonce.userHasLiked ? Colors.red : Colors.grey),
+                  Text(' ${annonce.likesCount}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  const SizedBox(width: 12),
+                  Icon(Icons.comment_outlined, size: 14, color: Colors.grey),
+                  Text(' ${annonce.commentsCount}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  const SizedBox(width: 12),
+                  Icon(Icons.share_outlined, size: 14, color: Colors.grey),
+                  Text(' ${annonce.partagesCount}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
